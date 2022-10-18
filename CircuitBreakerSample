@@ -1,0 +1,105 @@
+package collectionsPackage;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+class WorkerClass implements Runnable {
+
+	int userId = 10;
+	private Resource resource;
+
+	public WorkerClass(int userId) {
+		super();
+		this.userId = userId;
+	}
+
+	@Override
+	public void run() {
+		if (resource.isProcessingAllowed(userId)) {
+			System.out.println(" Processing allowed......");
+			return;
+		}
+		System.out.println(" Processing NOT allowed......");
+
+	}
+
+}
+
+public class CircuitBreakerSample {
+
+	public static void main(String args[]) {
+
+		/// impersonate users
+		WorkerClass workerClass = new WorkerClass(1);
+		for (int i = 0; i < 5; i++) {
+			Thread t = new Thread(workerClass);
+			t.setName("Request_" + i);
+			t.start();
+
+			try {
+				Thread.sleep(3000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+	}
+
+}
+
+class Resource {
+	static Map<Integer, Long> userToLast = new HashMap<>();
+	static Map<Integer, Integer> userToCount = new HashMap<>();
+
+	public static boolean isProcessingAllowed(int userId) {
+		System.out.println(" Entering the template ..........");
+		if (!validateTemplate(userId)) {
+			return false;
+		}
+		return true;
+	}
+
+	private static boolean validateTemplate(int userId) {
+
+		if (requestCount(userId))
+			return false;
+		if (requestWithinFrame(userId)) {
+			System.out.println(" Multiple req. within time frame ");
+			return false;
+		}
+
+		// update map
+		userToCount.put(userId, userToCount.get(userId) + 1);
+		userToLast.put(userId, System.currentTimeMillis());
+
+		System.out.println(" userId " + userId + " Count " + userToCount.get(userId));
+		return true;
+	}
+
+	private static boolean requestCount(int userId) {
+		if (!userToCount.containsKey(userId)) {
+			userToCount.put(userId, 1);
+			userToLast.put(userId, System.currentTimeMillis());
+			return false;
+		} else {
+
+			return userToCount.get(userId) > 4;
+		}
+
+	}
+
+	private static boolean requestWithinFrame(int userId) {
+		long currentTime = System.currentTimeMillis();
+		long oldTime = 0l;
+		Optional<Long> op = Optional.ofNullable(userToLast.get(userId));
+		if (!op.isEmpty()) {
+			oldTime = op.get();
+		}
+		long diff = currentTime - oldTime;
+		System.out.println(" last access time " + diff);
+		return diff < 1000;
+	}
+
+}
