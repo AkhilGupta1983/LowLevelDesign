@@ -1,0 +1,87 @@
+import java.util.HashMap;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+
+class WorkerClass implements Runnable {
+
+	int userId = 10;
+	private CircuitBreakerAPI resource;
+
+	public WorkerClass(int userId) {
+		super();
+		this.userId = userId;
+		resource = new CircuitBreakerAPI();
+	}
+
+	@Override
+	public void run() {
+		if (resource.processRequest(userId)) {
+			System.out.println(" Processing allowed......");
+			return;
+		}
+		System.out.println(" Processing NOT allowed......");
+
+	}
+
+}
+
+public class CircuitBreakerSample2 {
+
+	public static void main(String args[]) {
+
+		WorkerClass workerClass = new WorkerClass(1);
+		for (int i = 0; i < 10; i++) {
+			Thread t = new Thread(workerClass);
+			t.setName("Request_" + i);
+			t.start();
+
+			try {
+				Thread.sleep(200);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+	}
+}
+
+class CircuitBreakerAPI {
+
+	private Map<Integer, Map<Long, AtomicInteger>> map = new HashMap<>(); // userid, <last,count>
+	AtomicInteger counter = new AtomicInteger();
+
+	private boolean isLastCallWithinAllowedRange(int userId) {
+		if (!map.containsKey(userId)) {
+			Map<Long, AtomicInteger> visitMap = new HashMap<Long, AtomicInteger>();
+			counter.set(1);
+			visitMap.put(System.currentTimeMillis(), counter);
+			map.put(userId, visitMap);
+		} else {
+			Map<Long, AtomicInteger> existingMap = map.get(userId);
+			long lastVisit = existingMap.entrySet().iterator().next().getKey();
+			long timeDiff = System.currentTimeMillis() - lastVisit;
+			if (timeDiff < 30) {
+				System.out.println(" diff is " + timeDiff);
+				return false;
+			}
+			AtomicInteger count = existingMap.get(lastVisit);
+			System.out.println(" count is " + count.get());
+			if (count.get() > 4) {
+				return false;
+			}
+			count.getAndIncrement();
+			existingMap.put(System.currentTimeMillis(), count);
+		}
+
+		return true;
+	}
+
+	public boolean processRequest(int userId) {
+		if (isLastCallWithinAllowedRange(userId))
+			return true;
+		return false;
+	}
+
+}
